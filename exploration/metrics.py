@@ -25,3 +25,12 @@ def corner_label(number: float, letter: object = "") -> str:
 def is_drs_open(value: object) -> bool:
     """True when a FastF1 DRS value means the flap is open."""
     return value in DRS_OPEN_VALUES
+
+
+def count_implausible_speeds(
+        speeds: pd.Series, 
+        min_kmh: float = MIN_PLAUSIBLE_SPEED_KMH,
+        max_kmh: float = MAX_PLAUSIBLE_SPEED_KMH
+) -> int: 
+    """Number of speed samples outside physically plausible limits."""
+    return int(((speeds < min_kmh) | (speeds > max_kmh)).sum())
