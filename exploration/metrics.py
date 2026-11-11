@@ -44,6 +44,30 @@ def corner_label(number: float, letter: object = "") -> str:
 
 
 
+def min_speed_near(telemetry: pd.DataFrame, distance_m: float, window_m: float) -> float | None:
+    """Minimum speed within +/- window_m of distance_m (bounds inclusive).
+
+    Returns None when no telemetry point falls inside the window.
+    """
+    if window_m <= 0:
+        raise ValueError(f"window_m must be positive, got {window_m}")
+    in_window = telemetry["Distance"].between(distance_m - window_m, distance_m + window_m)
+    speeds = telemetry.loc[in_window, "Speed"]
+    return None if speeds.empty else float(speeds.min())
+
+
+
+def corner_min_speeds(telemetry: pd.DataFrame, corners: pd.DataFrame, window_m: float) -> dict[str, float]:
+    """Minimum speed at each corner of one lap, keyed by corner label."""
+    result: dict[str, float] = {}
+    for _, corner in corners.iterrows():
+        speed = min_speed_near(telemetry, corner["Distance"], window_m)
+        if speed is not None:
+            result[corner_label(corner["Number"], corner["Letter"])] = speed
+    return result
+
+
+
 def is_drs_open(value: object) -> bool:
     """True when a FastF1 DRS value means the flap is open."""
     return value in DRS_OPEN_VALUES

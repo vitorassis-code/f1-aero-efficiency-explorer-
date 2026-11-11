@@ -11,9 +11,11 @@ import pytest
 
 from exploration.metrics import (
     corner_label, 
+    corner_min_speeds,
     count_implausible_speeds,
     filter_valid_laps,
-    is_drs_open
+    is_drs_open,
+    min_speed_near
     
 )
 
@@ -179,3 +181,53 @@ def test_filter_valid_laps_raises_clear_error_when_a_column_is_missing():
 
     with pytest.raises(ValueError, match="missing required columns"):
         filter_valid_laps(laps)
+
+
+# ---------- min_speed_near ----------
+
+def test_min_speed_near_finds_the_bottom_of_the_corner(valley_telemetry):
+    assert min_speed_near(valley_telemetry, distance_m=500, window_m=50) == 150
+
+
+def test_min_speed_near_window_bounds_are_inclusive(valley_telemetry):
+    # Window 450-470 m: the lowest point is exactly on the upper bound (470 m).
+    assert min_speed_near(valley_telemetry, distance_m=460, window_m=10) == pytest.approx(195)
+
+
+def test_min_speed_near_returns_none_when_window_is_outside_the_lap(valley_telemetry):
+    assert min_speed_near(valley_telemetry, distance_m=5000, window_m=50) is None
+
+
+@pytest.mark.parametrize("bad_window", [0, -10])
+def test_min_speed_near_rejects_non_positive_window(valley_telemetry, bad_window):
+    with pytest.raises(ValueError, match="window_m must be positive"):
+        min_speed_near(valley_telemetry, distance_m=500, window_m=bad_window)
+
+
+# ---------- corner_min_speeds ----------
+
+def test_corner_min_speeds_returns_one_value_per_corner(valley_telemetry, two_corners):
+    result = corner_min_speeds(valley_telemetry, two_corners, window_m=50)
+
+    assert result == {"corner_1": 150.0, "corner_2a": 300.0}
+
+
+def test_corner_min_speeds_skips_corners_outside_the_lap(valley_telemetry):
+    # Arrange: one corner inside the lap (500 m) and one far outside (5000 m)
+    corners = pd.DataFrame({"Number": [1, 9], "Letter": ["", ""], "Distance": [500.0, 5000.0]})
+
+    # Act
+    result = corner_min_speeds(valley_telemetry, corners, window_m=50)
+
+    # Assert: only corner 1 should be in the result
+    assert result == {"corner_1": 150.0}
+
+
+def test_corner_min_speeds_keeps_a_legitimate_zero_speed():
+    # A car stopped in a corner (0 km/h) is real data, not "missing"
+    telemetry = pd.DataFrame({"Distance": [0, 10, 20], "Speed": [100, 0, 100]})
+    corners = pd.DataFrame({"Number": [1], "Letter": [""], "Distance": [10.0]})
+
+    result = corner_min_speeds(telemetry, corners, window_m=10)
+
+    assert result == {"corner_1": 0.0}
